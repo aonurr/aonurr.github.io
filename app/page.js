@@ -14,6 +14,11 @@ export default function Home() {
   const [finished, setFinished] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
 
+  // Mevcut soru için kullanıcının cevapları
+  const [selectedSide, setSelectedSide] = useState(null); // 'left' | 'right'
+  const [confidence, setConfidence] = useState(null); // 'low' | 'medium' | 'high'
+  const [explanation, setExplanation] = useState("");
+
   // Tema tercihini yükle
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -44,7 +49,7 @@ export default function Home() {
 
   // Veri setini yükle
   useEffect(() => {
-    fetch("/verbositybias_dataset.json")
+    fetch("/pbias_dataset.json")
       .then((res) => res.json())
       .then((data) => {
         setDataset(data);
@@ -76,19 +81,23 @@ export default function Home() {
   };
 
   const GOOGLE_SHEETS_URL =
-    "https://script.google.com/macros/s/AKfycbwJuxGB3whM8nLsUW8zePiZCfOFrd8kj4GJaP71sWafhva244SLyjwIDoPCJTPXKsYxrQ/exec";
+    "https://script.google.com/macros/s/AKfycbzhsWSBClUOONQ915HhSYxpJv7ZsOtbw1v0omDw30exZoQPpi5c0FtyukHwp8LkUJu0jA/exec";
 
-  const handleChoice = (side) => {
+  const handleSubmit = () => {
+    if (!selectedSide || !confidence) return;
+
     const currentItem = dataset[currentIndex];
-    const chosenType = currentOrder[side]; // 'answer' veya 'edited_answer'
+    const chosenType = currentOrder[selectedSide]; // 'answer' veya 'edited_answer'
 
     const result = {
       userId: userId,
       itemIndex: currentIndex,
       text: currentItem.text,
-      chosenSide: side, // 'left' veya 'right'
+      chosenSide: selectedSide, // 'left' veya 'right'
       chosenType: chosenType, // 'answer' veya 'edited_answer'
       chosenSummary: currentItem[chosenType],
+      confidence: confidence, // 'low' | 'medium' | 'high'
+      explanation: explanation.trim(),
     };
 
     console.log("Seçim kaydedildi:", result);
@@ -105,12 +114,23 @@ export default function Home() {
       console.error("Google Sheets'e gönderim başarısız:", err);
     });
 
+    // Sonraki soru için alanları sıfırla
+    setSelectedSide(null);
+    setConfidence(null);
+    setExplanation("");
+
     if (currentIndex + 1 >= dataset.length) {
       setFinished(true);
     } else {
       setCurrentIndex(currentIndex + 1);
     }
   };
+
+  const confidenceOptions = [
+    { value: "low", label: "Düşük" },
+    { value: "medium", label: "Orta" },
+    { value: "high", label: "Yüksek" },
+  ];
 
   const currentItem = dataset[currentIndex];
 
@@ -299,9 +319,12 @@ export default function Home() {
                   style={{
                     flex: "1 1 320px",
                     maxWidth: "500px",
-                    border: `1px solid ${theme.border}`,
+                    border:
+                      selectedSide === "left"
+                        ? "2px solid #2563eb"
+                        : `1px solid ${theme.border}`,
                     borderRadius: "10px",
-                    padding: "1rem",
+                    padding: selectedSide === "left" ? "calc(1rem - 1px)" : "1rem",
                     display: "flex",
                     flexDirection: "column",
                     gap: "0.75rem",
@@ -313,9 +336,9 @@ export default function Home() {
                     {currentItem[currentOrder.left]}
                   </p>
                   <button
-                    onClick={() => handleChoice("left")}
+                    onClick={() => setSelectedSide("left")}
                     style={{
-                      backgroundColor: "#2563eb",
+                      backgroundColor: selectedSide === "left" ? "#1d4ed8" : "#2563eb",
                       color: "#fff",
                       border: "none",
                       padding: "0.6rem",
@@ -325,7 +348,7 @@ export default function Home() {
                       cursor: "pointer",
                     }}
                   >
-                    Bunu Seç
+                    {selectedSide === "left" ? "✓ Seçildi" : "Bunu Seç"}
                   </button>
                 </div>
 
@@ -334,9 +357,12 @@ export default function Home() {
                   style={{
                     flex: "1 1 320px",
                     maxWidth: "500px",
-                    border: `1px solid ${theme.border}`,
+                    border:
+                      selectedSide === "right"
+                        ? "2px solid #2563eb"
+                        : `1px solid ${theme.border}`,
                     borderRadius: "10px",
-                    padding: "1rem",
+                    padding: selectedSide === "right" ? "calc(1rem - 1px)" : "1rem",
                     display: "flex",
                     flexDirection: "column",
                     gap: "0.75rem",
@@ -348,9 +374,9 @@ export default function Home() {
                     {currentItem[currentOrder.right]}
                   </p>
                   <button
-                    onClick={() => handleChoice("right")}
+                    onClick={() => setSelectedSide("right")}
                     style={{
-                      backgroundColor: "#2563eb",
+                      backgroundColor: selectedSide === "right" ? "#1d4ed8" : "#2563eb",
                       color: "#fff",
                       border: "none",
                       padding: "0.6rem",
@@ -360,9 +386,101 @@ export default function Home() {
                       cursor: "pointer",
                     }}
                   >
-                    Bunu Seç
+                    {selectedSide === "right" ? "✓ Seçildi" : "Bunu Seç"}
                   </button>
                 </div>
+              </div>
+
+              {/* Emin olma oranı */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                }}
+              >
+                <h3 style={{ margin: 0, fontSize: "1rem" }}>
+                  Seçiminizden ne kadar eminsiniz?
+                </h3>
+                <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", justifyContent: "center" }}>
+                  {confidenceOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setConfidence(option.value)}
+                      style={{
+                        minWidth: "110px",
+                        padding: "0.6rem 1rem",
+                        borderRadius: "8px",
+                        fontSize: "0.9rem",
+                        fontWeight: "bold",
+                        cursor: "pointer",
+                        border:
+                          confidence === option.value
+                            ? "2px solid #2563eb"
+                            : `1px solid ${theme.border}`,
+                        backgroundColor:
+                          confidence === option.value ? "#2563eb" : theme.cardBg,
+                        color: confidence === option.value ? "#fff" : theme.text,
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Açıklama kutusu */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.5rem",
+                }}
+              >
+                <label htmlFor="explanation" style={{ fontSize: "0.95rem", fontWeight: "bold" }}>
+                  Açıklama (isteğe bağlı)
+                </label>
+                <textarea
+                  id="explanation"
+                  value={explanation}
+                  onChange={(e) => setExplanation(e.target.value)}
+                  placeholder="Seçiminizin nedenini kısaca yazabilirsiniz..."
+                  rows={4}
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: "0.75rem",
+                    borderRadius: "8px",
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: theme.cardBg,
+                    color: theme.text,
+                    fontSize: "0.95rem",
+                    fontFamily: "inherit",
+                    resize: "vertical",
+                  }}
+                />
+              </div>
+
+              {/* Gönder butonu */}
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <button
+                  onClick={handleSubmit}
+                  disabled={!selectedSide || !confidence}
+                  style={{
+                    backgroundColor: "#2563eb",
+                    color: "#fff",
+                    border: "none",
+                    padding: "0.8rem 2.5rem",
+                    borderRadius: "8px",
+                    fontSize: "1rem",
+                    fontWeight: "bold",
+                    cursor: !selectedSide || !confidence ? "not-allowed" : "pointer",
+                    opacity: !selectedSide || !confidence ? 0.5 : 1,
+                  }}
+                >
+                  Gönder
+                </button>
               </div>
             </div>
           )}
