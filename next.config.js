@@ -1,9 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "export",       // statik export -> ./out klasörü oluşturur
+  output: "export",
   images: {
-    unoptimized: true,    // GitHub Pages image optimization desteklemiyor
+    unoptimized: true,
   },
 };
-
 module.exports = nextConfig;
